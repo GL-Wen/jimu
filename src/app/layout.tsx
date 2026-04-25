@@ -1,11 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ClientProviders } from "@/components/ClientProviders";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { SeoJsonLd } from "@/components/SeoJsonLd";
+import { buildDefaultMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "即幕 JIMU · gpt-image-2 | 文生图 · 图生图",
-  description:
-    "即幕 JIMU 基于 gpt-image-2：将文字与参考图转为可商用的主视觉与 Banner，秒级出图、自然语言编辑。",
+export const metadata: Metadata = buildDefaultMetadata();
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#d97706" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
 };
 
 export default function RootLayout({
@@ -16,6 +21,8 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
+        <GoogleAnalytics />
+        <SeoJsonLd />
         <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
