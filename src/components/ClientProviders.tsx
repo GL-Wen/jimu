@@ -20,6 +20,7 @@ import {
   saveAppState,
 } from "@/lib/app-persist-idb";
 import type { AspectOption } from "@/lib/antmoo-config";
+import { ApiKeyModal } from "@/components/ApiKeyModal";
 
 const SAVE_DEBOUNCE_MS = 450;
 
@@ -31,6 +32,7 @@ type AppDataContextValue = {
   apiKey: string;
   setApiKey: (key: string) => void;
   saveApiKey: (key: string) => void;
+  openApiKeyModal: () => void;
   clearAllData: () => Promise<void>;
   tab: AppState["tab"];
   setTab: (t: AppState["tab"]) => void;
@@ -61,6 +63,7 @@ export function useApiKey() {
     apiKey: ctx.apiKey,
     setApiKey: ctx.setApiKey,
     saveApiKey: ctx.saveApiKey,
+    openApiKeyModal: ctx.openApiKeyModal,
     isHydrated: ctx.isHydrated,
   };
 }
@@ -75,6 +78,7 @@ export function useAppData() {
 
 export function ClientProviders({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState | null>(null);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const stateRef = useRef<AppState | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipNextPersistRef = useRef(true);
@@ -243,6 +247,10 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     setState((prev) => (prev ? { ...prev, message: m } : prev));
   }, []);
 
+  const openApiKeyModal = useCallback(() => {
+    setApiKeyModalOpen(true);
+  }, []);
+
   const appContextValue = useMemo((): AppDataContextValue | null => {
     if (!state) {
       return null;
@@ -252,6 +260,7 @@ export function ClientProviders({ children }: { children: ReactNode }) {
       apiKey: state.apiKey,
       setApiKey,
       saveApiKey,
+      openApiKeyModal,
       clearAllData,
       tab: state.tab,
       setTab,
@@ -274,6 +283,7 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     state,
     setApiKey,
     saveApiKey,
+    openApiKeyModal,
     clearAllData,
     setTab,
     setPrompt,
@@ -296,6 +306,14 @@ export function ClientProviders({ children }: { children: ReactNode }) {
   return (
     <AppDataContext.Provider value={appContextValue!}>
       {children}
+      <ApiKeyModal
+        open={apiKeyModalOpen}
+        onClose={() => setApiKeyModalOpen(false)}
+        apiKey={state.apiKey}
+        saveApiKey={saveApiKey}
+        isHydrated
+        clearAllData={clearAllData}
+      />
     </AppDataContext.Provider>
   );
 }

@@ -20,6 +20,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { ImageLightbox } from "@/components/ImageLightbox";
 import { useAppData } from "../ClientProviders";
 import { ASPECT_OPTIONS, aspectToSize, DEFAULT_IMAGE_MODEL } from "@/lib/antmoo-config";
 import {
@@ -29,23 +30,15 @@ import {
   type GenImageItem,
 } from "@/lib/api-client";
 import { COUNTS, type ResultSlot } from "@/lib/app-persist-idb";
-import { ModelBadge } from "@/components/brand/ModelBadge";
 
 const PROMPT_MAX = 5000;
 const MAX_UPLOAD = 10;
 
-/** 生图：单条有格调的占位，引导用户把创意写细 */
+/** 生图：引导用户把发布目标写具体 */
 const PLACEHOLDER_GENERATE =
-  "以字为引，将脑海中的光色、情致与画幅一一道来——越具体，越可触可感。";
+  "写清要生成的图片：用途、主体、场景、风格、构图、色彩、文字留白和发布尺寸。";
 const PLACEHOLDER_EDIT =
-  "请描述如何编辑：例如将背景替换为海边日落，保持人物主体与光影自然…";
-
-const FEATURED_PROMPTS = [
-  "电影感镜头，浅景深，黄昏金色氛围，8K 细节",
-  "扁平插画，柔和配色，界面空状态配图，留足负空间",
-  "产品摄影，大理石台面，柔光箱，极简品牌风",
-  "赛博朋克街景，霓虹反光，雨后地面，竖构图海报",
-];
+  "说明参考图中要保留和修改的部分：例如保留产品外观，把背景换成海边日落，并统一光影。";
 
 function itemToSrc(item: GenImageItem | undefined): string | null {
   if (!item) {
@@ -93,13 +86,12 @@ export function GeneratorCard() {
     setIndex,
     message,
     setMessage,
+    openApiKeyModal,
   } = useAppData();
   const [loading, setLoading] = useState(false);
-  const [presetsOpen, setPresetsOpen] = useState(false);
   const [reEditBusy, setReEditBusy] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const presetsRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollRef = useRef<HTMLDivElement | null>(null);
   const resultsScrollHydratedRef = useRef(false);
 
@@ -122,18 +114,6 @@ export function GeneratorCard() {
     };
   }, [previews]);
 
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!presetsRef.current?.contains(e.target as Node)) {
-        setPresetsOpen(false);
-      }
-    };
-    if (presetsOpen) {
-      document.addEventListener("mousedown", onDown);
-    }
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [presetsOpen]);
-
   const addFiles = (list: FileList | null) => {
     if (!list?.length) {
       return;
@@ -154,17 +134,17 @@ export function GeneratorCard() {
   const runGenerate = useCallback(async () => {
     setMessage(null);
     if (!apiKey.trim()) {
-      setMessage("请先在右上角设置中填写 API Key。");
+      openApiKeyModal();
       return;
     }
     if (!prompt.trim()) {
       setMessage(
-        tab === "edit" ? "请输入编辑描述。" : "请输入描述内容的提示词。"
+        tab === "edit" ? "请输入编辑需求。" : "请输入生成提示词。"
       );
       return;
     }
     if (tab === "edit" && sourceFiles.length === 0) {
-      setMessage("请至少上传一张图片（最多 10 张）。");
+      setMessage("请至少上传一张参考图（最多 10 张）。");
       return;
     }
 
@@ -258,6 +238,7 @@ export function GeneratorCard() {
     setIndex,
     setMessage,
     setResults,
+    openApiKeyModal,
   ]);
 
   const onDownload = useCallback(async () => {
@@ -295,10 +276,10 @@ export function GeneratorCard() {
       const file = await srcToFile(current.src, "current-result.png");
       setSourceFiles([file]);
       setTab("edit");
-      setMessage("已载入当前图至「编辑图片」，在下方写清修改需求后点击「开始编辑」。");
+      setMessage("已将当前结果载入「图片编辑」，写清修改需求后即可继续编辑。");
     } catch {
       setMessage(
-        "无法从当前预览载入图片（可能受跨域限制）。请先下载，再于左侧「添加图片」上传。"
+        "无法从当前预览载入图片（可能受跨域限制）。请先下载，再于左侧「添加参考」上传。"
       );
     } finally {
       setReEditBusy(false);
@@ -337,9 +318,10 @@ export function GeneratorCard() {
         return;
       }
       const clamped = Math.min(Math.max(0, i), results.length - 1);
+      setIndex(clamped);
       el.scrollTo({ left: clamped * w, behavior: "smooth" });
     },
-    [results.length]
+    [results.length, setIndex]
   );
 
   useLayoutEffect(() => {
@@ -381,62 +363,23 @@ export function GeneratorCard() {
     return () => window.removeEventListener("resize", onResize);
   }, [syncIndexFromScroll]);
 
-  useEffect(() => {
-    if (!lightboxActive) {
-      return;
-    }
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [lightboxActive]);
-
-  useEffect(() => {
-    if (!lightboxActive) {
-      return;
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setLightboxOpen(false);
-        return;
-      }
-      if (results.length <= 1) {
-        return;
-      }
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        goToSlide((index - 1 + results.length) % results.length);
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
-        goToSlide((index + 1) % results.length);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lightboxActive, index, results.length, goToSlide]);
-
-  const applyPreset = (text: string) => {
-    setPrompt(text);
-    setPresetsOpen(false);
-  };
-
   return (
     <section
       id="generator"
-      className="mx-auto max-w-6xl scroll-mt-20 px-4 py-12 sm:px-6"
+      className="mx-auto max-w-6xl scroll-mt-20 px-3 py-8 sm:px-6 sm:py-12"
     >
-      <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_2px_24px_-4px_rgba(15,23,42,0.08),0_8px_32px_-8px_rgba(180,83,9,0.07)]">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)]/70 bg-gradient-to-r from-amber-50/90 to-stone-50/60 px-4 py-2.5 sm:px-5">
-          <p className="text-xs font-medium text-stone-600">
-            当前模型
-            <span className="sr-only"> {DEFAULT_IMAGE_MODEL}</span>
+      <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[0_2px_24px_-4px_rgba(15,23,42,0.08),0_8px_32px_-8px_rgba(180,83,9,0.07)] sm:rounded-3xl">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)]/70 bg-gradient-to-r from-amber-50/90 to-stone-50/60 px-4 py-3 sm:px-5">
+          <p className="text-sm font-semibold text-stone-900">
+            {DEFAULT_IMAGE_MODEL} 图像工作台
           </p>
-          <ModelBadge size="md" className="shadow-sm" />
+          <p className="text-xs font-medium text-stone-500">
+            生图、编辑、下载在同一处完成
+          </p>
         </div>
         <div className="grid gap-0 lg:grid-cols-2">
           {/* 左侧：与参考图一致的表单布局 */}
-          <div className="border-b border-[var(--border)]/80 p-5 sm:p-6 lg:border-b-0 lg:border-r">
+          <div className="border-b border-[var(--border)]/80 p-4 sm:p-6 lg:border-b-0 lg:border-r">
             <div className="rounded-2xl bg-amber-50/50 p-1 ring-1 ring-amber-900/5">
               <div className="grid grid-cols-2 gap-1">
                 <button
@@ -452,7 +395,7 @@ export function GeneratorCard() {
                   }`}
                 >
                   <ImageIcon className="h-4 w-4 shrink-0" />
-                  编辑图片
+                  图片编辑
                 </button>
                 <button
                   type="button"
@@ -467,7 +410,7 @@ export function GeneratorCard() {
                   }`}
                 >
                   <Sparkles className="h-4 w-4 shrink-0" />
-                  生成图片
+                  文生图
                 </button>
               </div>
             </div>
@@ -475,7 +418,7 @@ export function GeneratorCard() {
             {tab === "edit" && (
               <div className="mt-5">
                 <p className="mb-2 text-sm font-medium text-stone-900">
-                  上传图片（最多{MAX_UPLOAD}张）
+                  上传参考图（最多 {MAX_UPLOAD} 张）
                 </p>
                 <input
                   ref={fileRef}
@@ -515,7 +458,7 @@ export function GeneratorCard() {
                     >
                       <Plus className="h-6 w-6" />
                       <span className="px-0.5 text-center text-xs leading-tight">
-                        添加图片
+                        添加参考
                       </span>
                     </button>
                   )}
@@ -531,42 +474,10 @@ export function GeneratorCard() {
                 tab === "edit" ? "mt-5" : "mt-4"
               }`}
             >
-              {tab === "edit" ? (
-                <p className="flex items-center gap-1 text-sm font-medium text-stone-900">
-                  <Sparkles className="h-4 w-4 text-brand" />
-                  编辑描述
-                </p>
-              ) : (
-                <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-stone-900">
-                  <Sparkles className="h-4 w-4 shrink-0 text-brand" />
-                  创意提示词
-                </p>
-              )}
-              <div className="relative shrink-0" ref={presetsRef}>
-                <button
-                  type="button"
-                  onClick={() => setPresetsOpen((o) => !o)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-brand/40 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-brand backdrop-blur-sm transition hover:bg-amber-50/90"
-                >
-                  <span aria-hidden>✦</span>
-                  精选提示词
-                </button>
-                {presetsOpen && (
-                  <ul className="absolute right-0 z-20 mt-1 w-[min(100vw-2rem,18rem)] rounded-xl border border-[var(--border)] bg-[var(--surface)] py-1 text-left text-sm shadow-lg">
-                    {FEATURED_PROMPTS.map((line) => (
-                      <li key={line}>
-                        <button
-                          type="button"
-                          onClick={() => applyPreset(line)}
-                          className="w-full px-3 py-2 text-left text-stone-700 hover:bg-stone-50/80"
-                        >
-                          {line}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <p className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-stone-900">
+                <Sparkles className="h-4 w-4 shrink-0 text-brand" />
+                {tab === "edit" ? "编辑需求" : "生成提示词"}
+              </p>
             </div>
 
             <div className="relative mt-2">
@@ -577,7 +488,7 @@ export function GeneratorCard() {
                 placeholder={
                   tab === "edit" ? PLACEHOLDER_EDIT : PLACEHOLDER_GENERATE
                 }
-                className="min-h-[140px] w-full resize-y rounded-2xl border border-[var(--border)] bg-stone-50/80 p-3 text-sm text-stone-900 placeholder:text-stone-400/90 outline-none ring-brand/15 focus:border-brand/80 focus:ring-2"
+                className="min-h-[150px] w-full resize-y rounded-2xl border border-[var(--border)] bg-stone-50/80 p-3 text-base text-stone-900 placeholder:text-stone-400/90 outline-none ring-brand/15 focus:border-brand/80 focus:ring-2 sm:text-sm"
               />
               <span className="pointer-events-none absolute bottom-2 right-3 text-xs text-stone-400">
                 {prompt.length}/{PROMPT_MAX}
@@ -585,7 +496,7 @@ export function GeneratorCard() {
             </div>
 
             <div className="mt-5">
-              <p className="mb-2 text-sm font-medium text-stone-800">输出数量</p>
+              <p className="mb-2 text-sm font-medium text-stone-800">生成张数</p>
               <div className="flex flex-wrap gap-2">
                 {COUNTS.map((c) => (
                   <button
@@ -605,7 +516,7 @@ export function GeneratorCard() {
             </div>
 
             <div className="mt-4">
-              <p className="mb-2 text-sm font-medium text-stone-800">长宽比</p>
+              <p className="mb-2 text-sm font-medium text-stone-800">输出尺寸</p>
               <div className="flex flex-wrap gap-2">
                 {ASPECT_OPTIONS.map((a) => (
                   <button
@@ -634,7 +545,7 @@ export function GeneratorCard() {
               type="button"
               onClick={runGenerate}
               disabled={loading}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-base font-medium text-white shadow-sm transition hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-base font-semibold text-white shadow-sm transition hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -646,13 +557,13 @@ export function GeneratorCard() {
                   ? "处理中…"
                   : "生成中…"
                 : tab === "edit"
-                  ? "开始编辑"
+                  ? "提交图片编辑"
                   : "生成图片"}
             </button>
           </div>
 
           {/* 右侧结果 */}
-          <div className="bg-gradient-to-b from-amber-50/30 to-stone-100/40 p-5 sm:p-6">
+          <div className="bg-stone-50/70 p-4 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold tracking-tight text-stone-900">
                 生成结果
@@ -674,8 +585,8 @@ export function GeneratorCard() {
             </div>
 
             <div
-              className={`relative w-full max-w-lg overflow-hidden rounded-2xl border border-dashed border-stone-300/80 bg-white/80 shadow-inner ${
-                current ? "aspect-square" : "flex min-h-[min(18rem,60vw)] items-center justify-center"
+              className={`relative w-full max-w-lg overflow-hidden rounded-2xl border border-stone-200 bg-white/90 shadow-sm ${
+                current ? "mx-auto aspect-square" : "mx-auto"
               }`}
             >
               {current?.src ? (
@@ -730,72 +641,32 @@ export function GeneratorCard() {
                   </div>
                 </>
               ) : (
-                <div className="p-6 text-center text-sm text-stone-500">
-                  {tab === "edit"
-                    ? "上传图片并填写编辑描述，点击「开始编辑」"
-                    : "在左侧描述创意，点击「生成图片」"}
-                  <br />
-                  结果将显示于此
+                <div className="p-5 text-sm text-stone-600">
+                  <p className="font-semibold text-stone-950">等待生成结果</p>
+                  <ul className="mt-3 space-y-2 leading-relaxed">
+                    <li>
+                      {tab === "edit"
+                    ? "上传参考图，并写清要保留、替换或调整的内容。"
+                    : "写下图片用途、主体、场景、风格和输出尺寸。"}
+                    </li>
+                    <li>点击左侧按钮后，结果会在这里显示并支持下载。</li>
+                    <li>多张结果可横向比较，也可以继续作为参考图编辑。</li>
+                  </ul>
                 </div>
               )}
             </div>
 
-            {lightboxActive && (
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="大图预览"
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/88 p-4 backdrop-blur-[1px]"
-                onClick={() => setLightboxOpen(false)}
-              >
-                <button
-                  type="button"
-                  onClick={() => setLightboxOpen(false)}
-                  className="absolute right-3 top-3 rounded-full border border-white/20 bg-white/10 p-2 text-white transition hover:bg-white/20"
-                  aria-label="关闭"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-                {results.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goToSlide(
-                          (index - 1 + results.length) % results.length
-                        );
-                      }}
-                      className="absolute left-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-white/10 p-2 text-white transition hover:bg-white/20 sm:left-4"
-                      aria-label="上一张"
-                    >
-                      <ChevronLeft className="h-7 w-7" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goToSlide((index + 1) % results.length);
-                      }}
-                      className="absolute right-2 top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-white/10 p-2 text-white transition hover:bg-white/20 sm:right-4"
-                      aria-label="下一张"
-                    >
-                      <ChevronRight className="h-7 w-7" />
-                    </button>
-                    <span className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs text-white/95">
-                      {index + 1} / {results.length}
-                    </span>
-                  </>
-                )}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={current.src}
-                  alt=""
-                  className="max-h-[min(92dvh,100%)] max-w-full object-contain"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-            )}
+            <ImageLightbox
+              open={lightboxActive}
+              images={results.map((result, i) => ({
+                src: result.src,
+                alt: `生成结果 ${i + 1}`,
+              }))}
+              index={index}
+              title="生成结果"
+              onClose={() => setLightboxOpen(false)}
+              onIndexChange={goToSlide}
+            />
 
             <div className="mt-4 grid grid-cols-2 gap-3">
               <ActionBtn
@@ -812,14 +683,14 @@ export function GeneratorCard() {
                     <Pencil className="h-4 w-4" />
                   )
                 }
-                label="重新编辑"
+                label="继续编辑"
                 onClick={onReEdit}
                 disabled={!current || reEditBusy}
               />
             </div>
 
             <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/90 p-3 shadow-sm">
-              <p className="text-xs font-medium text-stone-500">提示词</p>
+              <p className="text-xs font-medium text-stone-500">本轮指令</p>
               <p className="mt-1 text-sm text-stone-800">
                 {current?.prompt || "—"}
               </p>

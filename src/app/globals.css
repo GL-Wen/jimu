@@ -29,5 +29,7 @@ body {
     var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  -webkit-tap-highlight-color: transparent;
 }

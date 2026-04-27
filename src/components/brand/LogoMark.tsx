@@ -3,7 +3,7 @@
 import { useId } from "react";
 
 /**
- * 即幕 JIMU — 主标识：画幅（可商用主幕）+ 星芒（秒级出光）。
+ * 即幕 JIMU — 主标识：发布画幅 + 生成星芒。
  */
 export function LogoMark({ className }: { className?: string }) {
   const uid = useId();
@@ -31,31 +31,38 @@ export function LogoMark({ className }: { className?: string }) {
         </linearGradient>
       </defs>
       <rect
-        x="2"
-        y="2"
-        width="28"
-        height="28"
-        rx="8"
+        x="1.5"
+        y="1.5"
+        width="29"
+        height="29"
+        rx="7.5"
         fill={`url(#${gradId})`}
       />
       <rect
-        x="7.5"
-        y="9.5"
-        width="15"
-        height="11.5"
-        rx="1.5"
+        x="6.8"
+        y="8.2"
+        width="18.4"
+        height="14.2"
+        rx="2.2"
         fill="white"
         fillOpacity="0.95"
       />
       <path
-        d="M8.2 20.1 12.1 16a.5.5 0 0 1 .7 0l2.1 2 3.1-2.5a.5.5 0 0 1 .7.1L23.2 20H8.2Z"
+        d="M8.6 20.8 12.9 16a.65.65 0 0 1 .9 0l2.9 2.8 2.7-2.2a.65.65 0 0 1 .9.08l3.4 4.12H8.6Z"
         fill="var(--brand, #d97706)"
-        fillOpacity="0.28"
+        fillOpacity="0.34"
       />
       <path
-        d="M22.5 8.2v1.1m0 1.1v1.1m.9-1.6-.6.3m-1.2.7-.6.3m1.2-2.3-.6.3m-1.2.7-.6.3"
+        d="M23.4 6.4v1.4m0 2.8V12m-2.8-2.8H22m2.8 0h1.4"
         stroke="white"
-        strokeWidth="1.1"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10.4 11.2h6.2M10.4 13.8h4"
+        stroke="var(--brand, #d97706)"
+        strokeOpacity="0.32"
+        strokeWidth="1.15"
         strokeLinecap="round"
       />
     </svg>
