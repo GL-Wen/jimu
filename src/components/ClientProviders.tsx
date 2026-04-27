@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
   type AppState,
   clearAppStorage,
@@ -21,11 +22,13 @@ import {
 } from "@/lib/app-persist-idb";
 import type { AspectOption } from "@/lib/antmoo-config";
 import { ApiKeyModal } from "@/components/ApiKeyModal";
+import type { PalmistryStyleId } from "@/lib/palmistry-prompt";
 
 const SAVE_DEBOUNCE_MS = 450;
 
 type SetFiles = React.Dispatch<React.SetStateAction<File[]>>;
 type SetResults = React.Dispatch<React.SetStateAction<ResultSlot[]>>;
+type SetPalmistryFile = React.Dispatch<React.SetStateAction<File | null>>;
 
 type AppDataContextValue = {
   isHydrated: boolean;
@@ -50,6 +53,14 @@ type AppDataContextValue = {
   setIndex: React.Dispatch<React.SetStateAction<number>>;
   message: string | null;
   setMessage: (m: string | null) => void;
+  palmistryStyleId: PalmistryStyleId;
+  setPalmistryStyleId: (styleId: PalmistryStyleId) => void;
+  palmistryFile: File | null;
+  setPalmistryFile: SetPalmistryFile;
+  palmistryResultSrc: string | null;
+  setPalmistryResultSrc: (src: string | null) => void;
+  palmistryMessage: string | null;
+  setPalmistryMessage: (message: string | null) => void;
 };
 
 const AppDataContext = createContext<AppDataContextValue | null>(null);
@@ -76,7 +87,27 @@ export function useAppData() {
   return ctx;
 }
 
+export function usePalmistryData() {
+  const ctx = useContext(AppDataContext);
+  if (!ctx) {
+    throw new Error("usePalmistryData must be used within ClientProviders");
+  }
+  return {
+    apiKey: ctx.apiKey,
+    openApiKeyModal: ctx.openApiKeyModal,
+    styleId: ctx.palmistryStyleId,
+    setStyleId: ctx.setPalmistryStyleId,
+    file: ctx.palmistryFile,
+    setFile: ctx.setPalmistryFile,
+    resultSrc: ctx.palmistryResultSrc,
+    setResultSrc: ctx.setPalmistryResultSrc,
+    message: ctx.palmistryMessage,
+    setMessage: ctx.setPalmistryMessage,
+  };
+}
+
 export function ClientProviders({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [state, setState] = useState<AppState | null>(null);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const stateRef = useRef<AppState | null>(null);
@@ -87,20 +118,21 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     stateRef.current = state;
   }, [state]);
 
+  const flushToIdb = useCallback(() => {
+    const s = stateRef.current;
+    if (!s) {
+      return;
+    }
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    void saveAppState(s).catch(() => {
+      /* non-fatal */
+    });
+  }, []);
+
   useEffect(() => {
-    const flushToIdb = () => {
-      const s = stateRef.current;
-      if (!s) {
-        return;
-      }
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-      void saveAppState(s).catch(() => {
-        /* non-fatal */
-      });
-    };
     const onVis = () => {
       if (document.visibilityState === "hidden") {
         flushToIdb();
@@ -112,7 +144,17 @@ export function ClientProviders({ children }: { children: ReactNode }) {
       window.removeEventListener("pagehide", flushToIdb);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
+  }, [flushToIdb]);
+
+  useEffect(() => {
+    flushToIdb();
+  }, [flushToIdb, pathname]);
+
+  useEffect(() => {
+    return () => {
+      flushToIdb();
+    };
+  }, [flushToIdb]);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,6 +289,29 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     setState((prev) => (prev ? { ...prev, message: m } : prev));
   }, []);
 
+  const setPalmistryStyleId = useCallback((palmistryStyleId: PalmistryStyleId) => {
+    setState((prev) => (prev ? { ...prev, palmistryStyleId } : prev));
+  }, []);
+
+  const setPalmistryFile: SetPalmistryFile = useCallback((action) => {
+    setState((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const palmistryFile =
+        typeof action === "function" ? action(prev.palmistryFile) : action;
+      return { ...prev, palmistryFile };
+    });
+  }, []);
+
+  const setPalmistryResultSrc = useCallback((palmistryResultSrc: string | null) => {
+    setState((prev) => (prev ? { ...prev, palmistryResultSrc } : prev));
+  }, []);
+
+  const setPalmistryMessage = useCallback((palmistryMessage: string | null) => {
+    setState((prev) => (prev ? { ...prev, palmistryMessage } : prev));
+  }, []);
+
   const openApiKeyModal = useCallback(() => {
     setApiKeyModalOpen(true);
   }, []);
@@ -278,6 +343,14 @@ export function ClientProviders({ children }: { children: ReactNode }) {
       setIndex,
       message: state.message,
       setMessage,
+      palmistryStyleId: state.palmistryStyleId,
+      setPalmistryStyleId,
+      palmistryFile: state.palmistryFile,
+      setPalmistryFile,
+      palmistryResultSrc: state.palmistryResultSrc,
+      setPalmistryResultSrc,
+      palmistryMessage: state.palmistryMessage,
+      setPalmistryMessage,
     };
   }, [
     state,
@@ -293,6 +366,10 @@ export function ClientProviders({ children }: { children: ReactNode }) {
     setResults,
     setIndex,
     setMessage,
+    setPalmistryStyleId,
+    setPalmistryFile,
+    setPalmistryResultSrc,
+    setPalmistryMessage,
   ]);
 
   if (!state) {

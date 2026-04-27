@@ -1,4 +1,5 @@
 import { ASPECT_OPTIONS, type AspectOption } from "@/lib/antmoo-config";
+import { PALMISTRY_STYLES, type PalmistryStyleId } from "@/lib/palmistry-prompt";
 
 const DB_NAME = "antmoo";
 const DB_VERSION = 1;
@@ -33,6 +34,10 @@ export type AppPersistV1 = {
   results: ResultSlot[];
   resultIndex: number;
   message: string | null;
+  palmistryStyleId?: PalmistryStyleId;
+  palmistryFile?: SourcePersisted | null;
+  palmistryResultSrc?: string | null;
+  palmistryMessage?: string | null;
 };
 
 export type AppState = {
@@ -45,6 +50,10 @@ export type AppState = {
   results: ResultSlot[];
   resultIndex: number;
   message: string | null;
+  palmistryStyleId: PalmistryStyleId;
+  palmistryFile: File | null;
+  palmistryResultSrc: string | null;
+  palmistryMessage: string | null;
 };
 
 export const DEFAULT_APP_STATE: AppState = {
@@ -57,6 +66,10 @@ export const DEFAULT_APP_STATE: AppState = {
   results: [],
   resultIndex: 0,
   message: null,
+  palmistryStyleId: "minimal",
+  palmistryFile: null,
+  palmistryResultSrc: null,
+  palmistryMessage: null,
 };
 
 function isAspect(a: string): a is AspectOption {
@@ -65,6 +78,10 @@ function isAspect(a: string): a is AspectOption {
 
 function isN(n: number): n is GenCount {
   return (COUNTS as readonly number[]).includes(n);
+}
+
+function isPalmistryStyleId(id: string): id is PalmistryStyleId {
+  return PALMISTRY_STYLES.some((style) => style.id === id);
 }
 
 function b64ToFile(b64: string, name: string, type: string): File {
@@ -193,6 +210,25 @@ function parseApp(raw: unknown): AppState | null {
           p.resultIndex,
           Math.max(0, results.length - 1)
         );
+
+  let palmistryFile: File | null = null;
+  if (p.palmistryFile) {
+    try {
+      palmistryFile = b64ToFile(
+        p.palmistryFile.b64,
+        p.palmistryFile.name,
+        p.palmistryFile.type
+      );
+    } catch {
+      palmistryFile = null;
+    }
+  }
+  const palmistryStyleId =
+    typeof p.palmistryStyleId === "string" &&
+    isPalmistryStyleId(p.palmistryStyleId)
+      ? p.palmistryStyleId
+      : DEFAULT_APP_STATE.palmistryStyleId;
+
   return {
     apiKey: p.apiKey,
     tab: p.tab,
@@ -203,6 +239,12 @@ function parseApp(raw: unknown): AppState | null {
     results,
     resultIndex: ri,
     message: p.message,
+    palmistryStyleId,
+    palmistryFile,
+    palmistryResultSrc:
+      typeof p.palmistryResultSrc === "string" ? p.palmistryResultSrc : null,
+    palmistryMessage:
+      typeof p.palmistryMessage === "string" ? p.palmistryMessage : null,
   };
 }
 
@@ -251,6 +293,18 @@ async function toPersisted(state: AppState): Promise<AppPersistV1> {
       /* skip broken file in persist */
     }
   }
+  let palmistryFile: SourcePersisted | null = null;
+  if (state.palmistryFile) {
+    try {
+      palmistryFile = {
+        name: state.palmistryFile.name,
+        type: state.palmistryFile.type,
+        b64: await fileToB64(state.palmistryFile),
+      };
+    } catch {
+      palmistryFile = null;
+    }
+  }
   return {
     v: 1,
     apiKey: state.apiKey,
@@ -262,6 +316,10 @@ async function toPersisted(state: AppState): Promise<AppPersistV1> {
     results: state.results,
     resultIndex: state.resultIndex,
     message: state.message,
+    palmistryStyleId: state.palmistryStyleId,
+    palmistryFile,
+    palmistryResultSrc: state.palmistryResultSrc,
+    palmistryMessage: state.palmistryMessage,
   };
 }
 

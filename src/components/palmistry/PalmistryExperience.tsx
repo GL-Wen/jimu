@@ -5,11 +5,10 @@ import { Download, Loader2, Sparkles, Upload, X } from "lucide-react";
 import {
   buildPalmistryEditPrompt,
   PALMISTRY_STYLES,
-  type PalmistryStyleId,
 } from "@/lib/palmistry-prompt";
 import { DEFAULT_IMAGE_MODEL } from "@/lib/antmoo-config";
 import { dataUrlFromB64, editImage, type GenImageItem } from "@/lib/api-client";
-import { useApiKey } from "@/components/ClientProviders";
+import { usePalmistryData } from "@/components/ClientProviders";
 import { ImageLightbox } from "@/components/ImageLightbox";
 
 function itemToSrc(item: GenImageItem | undefined): string | null {
@@ -23,12 +22,19 @@ function itemToSrc(item: GenImageItem | undefined): string | null {
 const CARD_SIZE = "1024x1536";
 
 export function PalmistryExperience() {
-  const { apiKey, openApiKeyModal } = useApiKey();
-  const [styleId, setStyleId] = useState<PalmistryStyleId>("minimal");
-  const [file, setFile] = useState<File | null>(null);
-  const [resultSrc, setResultSrc] = useState<string | null>(null);
+  const {
+    apiKey,
+    openApiKeyModal,
+    styleId,
+    setStyleId,
+    file,
+    setFile,
+    resultSrc,
+    setResultSrc,
+    message,
+    setMessage,
+  } = usePalmistryData();
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -83,7 +89,14 @@ export function PalmistryExperience() {
     } finally {
       setLoading(false);
     }
-  }, [apiKey, file, openApiKeyModal, styleId]);
+  }, [
+    apiKey,
+    file,
+    openApiKeyModal,
+    setMessage,
+    setResultSrc,
+    styleId,
+  ]);
 
   const onDownload = useCallback(async () => {
     if (!resultSrc) return;
@@ -106,7 +119,7 @@ export function PalmistryExperience() {
     } catch {
       setMessage("下载失败，可尝试长按或新标签页打开图片后保存。");
     }
-  }, [resultSrc]);
+  }, [resultSrc, setMessage]);
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
