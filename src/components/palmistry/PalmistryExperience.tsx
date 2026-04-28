@@ -19,7 +19,70 @@ function itemToSrc(item: GenImageItem | undefined): string | null {
 }
 
 /** 运势卡竖版，与 ASPECT_TO_SIZE 中 9:16 一致 */
-const CARD_SIZE = "1024x1536";
+const CARD_WIDTH = 1024;
+const CARD_HEIGHT = 1536;
+const CARD_SIZE = `${CARD_WIDTH}x${CARD_HEIGHT}`;
+const CARD_SAFE_PADDING = 64;
+
+function loadImageElement(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("图片读取失败，请换一张清晰照片重试。"));
+    };
+    img.src = url;
+  });
+}
+
+function canvasToPngFile(canvas: HTMLCanvasElement, name: string): Promise<File> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("图片预处理失败，请换一张照片重试。"));
+        return;
+      }
+      resolve(new File([blob], name, { type: "image/png" }));
+    }, "image/png");
+  });
+}
+
+async function normalizePalmistrySource(file: File): Promise<File> {
+  const img = await loadImageElement(file);
+  if (img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+    throw new Error("图片尺寸读取失败，请换一张照片重试。");
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = CARD_WIDTH;
+  canvas.height = CARD_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("当前浏览器不支持图片预处理，请换浏览器重试。");
+  }
+
+  ctx.fillStyle = "#f7f2ea";
+  ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
+
+  const maxDrawWidth = CARD_WIDTH - CARD_SAFE_PADDING * 2;
+  const maxDrawHeight = CARD_HEIGHT - CARD_SAFE_PADDING * 2;
+  const scale = Math.min(
+    maxDrawWidth / img.naturalWidth,
+    maxDrawHeight / img.naturalHeight
+  );
+  const drawWidth = Math.round(img.naturalWidth * scale);
+  const drawHeight = Math.round(img.naturalHeight * scale);
+  const drawX = Math.round((CARD_WIDTH - drawWidth) / 2);
+  const drawY = Math.round((CARD_HEIGHT - drawHeight) / 2);
+
+  ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+  return canvasToPngFile(canvas, "palmistry-source-1024x1536.png");
+}
 
 export function PalmistryExperience() {
   const {
@@ -67,8 +130,9 @@ export function PalmistryExperience() {
     setLoading(true);
     setResultSrc(null);
     try {
+      const normalizedFile = await normalizePalmistrySource(file);
       const fd = new FormData();
-      fd.append("image", file);
+      fd.append("image", normalizedFile);
       fd.append("prompt", buildPalmistryEditPrompt(styleId));
       fd.append("n", "1");
       fd.append("size", CARD_SIZE);
