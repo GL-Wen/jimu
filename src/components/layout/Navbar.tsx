@@ -10,8 +10,15 @@ import { useAppData } from "@/components/ClientProviders";
 export function Navbar() {
   const pathname = usePathname();
   const { openApiKeyModal } = useAppData();
-  const onHome = pathname === "/";
-  const onPalmistry = pathname === "/palmistry";
+  const navItems = [
+    { href: "/#generator", label: "AI 生图", active: pathname === "/" },
+    { href: "/palmistry", label: "手相运势", active: pathname === "/palmistry" },
+    {
+      href: "/palm-reading-guide",
+      label: "掌相指南",
+      active: pathname === "/palm-reading-guide",
+    },
+  ];
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--border)]/90 bg-[var(--surface)]/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
@@ -33,26 +40,20 @@ export function Navbar() {
           className="flex shrink-0 items-center gap-0.5 sm:gap-1"
           aria-label="主导航"
         >
-          <Link
-            href="/#generator"
-            className={`rounded-lg px-2 py-1.5 text-xs font-medium transition sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm ${
-              onHome
-                ? "bg-amber-100/90 text-stone-900"
-                : "text-stone-600 hover:bg-amber-50/80 hover:text-stone-900"
-            }`}
-          >
-            AI 生图
-          </Link>
-          <Link
-            href="/palmistry"
-            className={`rounded-lg px-2 py-1.5 text-xs font-medium transition sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm ${
-              onPalmistry
-                ? "bg-amber-100/90 text-stone-900"
-                : "text-stone-600 hover:bg-amber-50/80 hover:text-stone-900"
-            }`}
-          >
-            手相运势
-          </Link>
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={item.active ? "page" : undefined}
+              className={`rounded-lg px-2 py-1.5 text-xs font-medium transition sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm ${
+                item.active
+                  ? "bg-amber-100/90 text-stone-900"
+                  : "text-stone-600 hover:bg-amber-50/80 hover:text-stone-900"
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
         <button
           type="button"
